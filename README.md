@@ -1,88 +1,82 @@
 import os
 
-# Fungsi enkripsi dasar
-def enkripsi(byte_data, key):
-    # 1. Substitusi XOR
-    hasil = byte_data ^ key
+class KriptoEngine:
+    def __init__(self, key):
+        # Kunci harus 8-bit (0-255)
+        self.key = sum(ord(c) for c in str(key)) % 256
+
+    # --- METODE KRIPTOGRAFI DASAR ---
+    def _substitusi_xor(self, b):
+        return b ^ self.key # Metode 1
+
+    def _rotasi_bit(self, b, arah='kiri'):
+        if arah == 'kiri':
+            return ((b << 3) | (b >> 5)) & 0xFF # Metode 21
+        return ((b >> 3) | (b << 5)) & 0xFF
+
+    def _permutasi_bit(self, b):
+        # Membalik urutan bit (bit 0-7 dibalik) 
+        return int('{:08b}'.format(b)[::-1], 2)
+
+    # --- PROSES CORE ---
+    def enkripsi_byte(self, b):
+        b = self._substitusi_xor(b)
+        b = self._rotasi_bit(b, 'kiri')
+        b = self._permutasi_bit(b)
+        return b
+
+    def dekripsi_byte(self, b):
+        b = self._permutasi_bit(b) # Kebalikan permutasi balik adalah dirinya sendiri
+        b = self._rotasi_bit(b, 'kanan')
+        b = self._substitusi_xor(b)
+        return b
+
+# --- ANTARMUKA APLIKASI (CLI) ---
+def main():
+    print("=== APLIKASI PENYANDIAN DATA - PRODI S1 TEKNIK KOMPUTER ===")
+    print("Target: Projek CLO 1 - Keamanan Sistem [cite: 2, 4]")
     
-    # 2. Rotasi kiri 3 bit
-    hasil = ((hasil << 3) | (hasil >> 5)) & 255
+    key_input = input("Masukkan Kunci (Angka/Teks): ")
+    engine = KriptoEngine(key_input)
     
-    # 3. Permutasi bit (dibalik)
-    biner = bin(hasil)[2:].zfill(8)
-    balik = biner[::-1]
-    return int(balik, 2)
-
-# Fungsi dekripsi dasar
-def dekripsi(byte_data, key):
-    # 1. Balik permutasi (kebalikan)
-    biner = bin(byte_data)[2:].zfill(8)
-    balik = biner[::-1]
-    hasil = int(balik, 2)
-    
-    # 2. Rotasi kanan 3 bit
-    hasil = ((hasil >> 3) | (hasil << 5)) & 255
-    
-    # 3. Substitusi XOR
-    return hasil ^ key
-
-print("=== TUGAS CLO 1 KEAMANAN SISTEM ===")
-kunci_input = input("Masukin Kunci: ")
-
-# Bikin kunci jadi angka 0-255
-kunci = 0
-for huruf in kunci_input:
-    kunci += ord(huruf)
-kunci = kunci % 256
-
-while True:
-    print("\nMenu:")
-    print("1. Enkripsi Teks (Nama & NIM)")
-    print("2. Enkripsi/Dekripsi File")
-    print("3. Keluar")
-    pilih = input("Pilih (1/2/3): ")
-
-    if pilih == '1':
-        teks = input("Masukkan Nama & NIM: ")
-        hasil_teks = ""
-        for t in teks:
-            angka = ord(t)
-            enk = enkripsi(angka, kunci)
-            hasil_teks += chr(enk)
+    while True:
+        print("\nMenu Utama:")
+        print("1. Enkripsi Teks (Nama & NIM)")
+        print("2. Enkripsi/Dekripsi File (Gambar/Video/Lainnya)")
+        print("3. Keluar")
+        
+        pilihan = input("Pilih menu (1/2/3): ")
+        
+        if pilihan == '1':
+            teks = input("Masukkan Nama & NIM: ") # Syarat minimal [cite: 25]
+            hasil = "".join(chr(engine.enkripsi_byte(ord(c))) for c in teks)
+            print(f"Hasil Enkripsi (Ciphertext): {hasil.encode('latin-1').hex()}")
             
-        print("Hasil (Hex):", hasil_teks.encode('latin-1').hex())
+        elif pilihan == '2':
+            path = input("Masukkan path file (contoh: foto.jpg): ")
+            if not os.path.exists(path):
+                print("File tidak ditemukan!")
+                continue
+                
+            mode = input("Pilih mode (E untuk Enkripsi / D untuk Dekripsi): ").lower()
+            
+            # Ganti baris output_path lama dengan ini:
+            output_path = "terkunci.enc" if mode == 'e' else "pulih_kembali.jpg"
+            
+            with open(path, 'rb') as f_in, open(output_path, 'wb') as f_out:
+                
+                data = f_in.read()
+                hasil = bytearray()
+                for b in data:
+                    if mode == 'e':
+                        hasil.append(engine.enkripsi_byte(b))
+                    else:
+                        hasil.append(engine.dekripsi_byte(b))
+                f_out.write(hasil)
+            print(f"Selesai! Hasil disimpan di: {output_path}")
+            
+        elif pilihan == '3':
+            break
 
-    elif pilih == '2':
-        nama_file = input("Nama file (contoh: foto.jpg): ")
-        if not os.path.exists(nama_file):
-            print("File gak ada!")
-            continue
-
-        mode = input("Pilih mode (E untuk Enkripsi / D untuk Dekripsi): ")
-        
-        if mode.lower() == 'e':
-            out = "terkunci.enc"
-        else:
-            out = "pulih_kembali.jpg"
-
-        # Buka dan baca file
-        f1 = open(nama_file, 'rb')
-        isi_file = f1.read()
-        f1.close()
-
-        hasil_file = bytearray()
-        for byte in isi_file:
-            if mode.lower() == 'e':
-                hasil_file.append(enkripsi(byte, kunci))
-            else:
-                hasil_file.append(dekripsi(byte, kunci))
-
-        # Simpan file baru
-        f2 = open(out, 'wb')
-        f2.write(hasil_file)
-        f2.close()
-        
-        print("Selesai disimpan di:", out)
-
-    elif pilih == '3':
-        break
+if __name__ == "__main__":
+    main()
